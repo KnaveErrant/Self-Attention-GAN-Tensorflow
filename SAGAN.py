@@ -54,7 +54,7 @@ class SAGAN(object):
             self.data = load_cifar10(size=self.img_size)
 
         else :
-            self.c_dim = 3
+            self.c_dim = 4
             self.data = load_data(dataset_name=self.dataset_name, size=self.img_size)
             self.custom_dataset = True
 
@@ -208,6 +208,7 @@ class SAGAN(object):
 
         else :
             alpha = tf.random_uniform(shape=[self.batch_size, 1, 1, 1], minval=0., maxval=1.)
+            print(alpha.shape, real.shape, fake)
             interpolated = alpha*real + (1. - alpha)*fake
 
         logit = self.discriminator(interpolated, reuse=True)
