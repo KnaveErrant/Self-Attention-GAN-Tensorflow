@@ -238,7 +238,7 @@ class SAGAN(object):
             inputs = tf.data.Dataset.from_tensor_slices(self.data)
 
             gpu_device = '/gpu:0'
-            inputs = inputs.apply(shuffle_and_repeat(self.dataset_num)).apply(map_and_batch(Image_Data_Class.image_processing, self.batch_size, num_parallel_batches=16, drop_remainder=True)).apply(prefetch_to_device(gpu_device, self.batch_size))
+            inputs = inputs.apply(tf.data.experimental.shuffle_and_repeat(self.dataset_num)).apply(tf.data.experimental.map_and_batch(Image_Data_Class.image_processing, self.batch_size, num_parallel_batches=16, drop_remainder=True)).apply(prefetch_to_device(gpu_device, self.batch_size))
 
             inputs_iterator = inputs.make_one_shot_iterator()
 
