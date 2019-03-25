@@ -8,7 +8,7 @@ class SAGAN(object):
     def __init__(self, sess, args):
         self.model_name = "SAGAN"  # name for checkpoint
         self.sess = sess
-        self.dataset_name = args.dataset
+        self.dataset_name = str(args.dataset)
         self.checkpoint_dir = args.checkpoint_dir
         self.sample_dir = args.sample_dir
         self.result_dir = args.result_dir
