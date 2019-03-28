@@ -96,6 +96,7 @@ def hw_flatten(x) :
 def minibatch(input, num_kernels=5, kernel_dim=3):
     x = flatten(input)
     x = tf.reshape(x, (-1, num_kernels, kernel_dim))
+    print(input.shape)
     #Calculate L1 distance and concat to original layer
     diffs = tf.expand_dims(x, 3) - tf.expand_dims(tf.transpose(x, [1, 2, 0]), 0)
     abs_diffs = tf.reduce_sum(tf.abs(diffs), 2)

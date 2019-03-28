@@ -171,7 +171,7 @@ class SAGAN(object):
 
 
             x = conv(x, channels=1, stride=1, sn=self.sn, use_bias=False, scope='D_logit')
-            x = minibatch(x, 4, 1)
+            x = minibatch(x, 1, 1)
             x = fully_conneted(x, 1)
             x = lrelu(x, 0.2)
 
