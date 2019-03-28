@@ -103,7 +103,7 @@ def minibatch(input, num_kernels=5, kernel_dim=3):
     minibatch_features = tf.reduce_sum(tf.exp(-abs_diffs), 2)
     minibatch_features = tf.reshape(minibatch_features, (-1, 1, 1, 1))
 
-    return tf.concat(1, [input, minibatch_features])
+    return tf.concat([input, minibatch_features], 0)
 ##################################################################################
 # Residual-block
 ##################################################################################
