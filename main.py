@@ -31,6 +31,7 @@ def parse_args():
     parser.add_argument('--n_critic', type=int, default=1, help='The number of critic')
 
     parser.add_argument('--img_size', type=int, default=128, help='The size of image')
+    parser.add_argument('--channels', type=int, default=4, help='The dimensions of image')
     parser.add_argument('--sample_num', type=int, default=64, help='The number of sample images')
 
 

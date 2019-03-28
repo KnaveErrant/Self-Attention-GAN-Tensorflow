@@ -21,6 +21,7 @@ class SAGAN(object):
         self.save_freq = args.save_freq
         self.img_size = args.img_size
 
+
         """ Generator """
         self.layer_num = int(np.log2(self.img_size)) - 3
         self.z_dim = args.z_dim  # dimension of noise-vector
@@ -54,7 +55,7 @@ class SAGAN(object):
             self.data = load_cifar10(size=self.img_size)
 
         else :
-            self.c_dim = 4
+            self.c_dim = args.channels
             self.data = load_data(dataset_name=self.dataset_name, size=self.img_size)
             self.custom_dataset = True
 
