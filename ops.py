@@ -101,6 +101,7 @@ def minibatch(input, num_kernels=5, kernel_dim=3):
     diffs = tf.expand_dims(x, 3) - tf.expand_dims(tf.transpose(x, [1, 2, 0]), 0)
     abs_diffs = tf.reduce_sum(tf.abs(diffs), 2)
     minibatch_features = tf.reduce_sum(tf.exp(-abs_diffs), 2)
+    minibatch_features = tf.reshape(minibatch_features, (-1, 1, 1, 1))
 
     return tf.concat(1, [input, minibatch_features])
 ##################################################################################
