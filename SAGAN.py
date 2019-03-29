@@ -95,6 +95,7 @@ class SAGAN(object):
     def generator(self, z, is_training=True, reuse=False):
         with tf.variable_scope("generator", reuse=reuse):
             ch = 1024
+            x = fully_connected(z, units= self.z_dim * 4, sn=self.sn)
             x = deconv(z, channels=ch, kernel=4, stride=1, padding='VALID', use_bias=False, sn=self.sn, scope='deconv')
             x = batch_norm(x, is_training, scope='batch_norm')
             x = relu(x)
@@ -142,6 +143,34 @@ class SAGAN(object):
 
             return x
 
+
+    def z_predictor(self, images, z, reuse=False, is_training=True):
+        with tf.variable_scope("z_predictor", reuse=reuse):
+            ch = 64
+            x = conv(images, channels=ch, kernel=4, stride=2, pad=1, sn=self.sn, use_bias=False, scope='conv')
+            x = lrelu(x, 0.2)
+
+            for i in range(self.layer_num // 2):
+                x = conv(x, channels=ch * 2, kernel=4, stride=2, pad=1, sn=self.sn, use_bias=False, scope='conv_' + str(i))
+                x = batch_norm(x, is_training, scope='zbatch_norm' + str(i))
+                x = lrelu(x, 0.2)
+
+                ch = ch * 2
+
+            # Self Attention
+            x = self.attention(x, ch, sn=self.sn, scope="zattention", reuse=reuse)
+
+            for i in range(self.layer_num // 2, self.layer_num):
+                x = conv(x, channels=ch * 2, kernel=4, stride=2, pad=1, sn=self.sn, use_bias=False, scope='zconv_' + str(i))
+                x = batch_norm(x, is_training, scope='zbatch_norm' + str(i))
+                x = lrelu(x, 0.2)
+
+                ch = ch * 2
+
+
+            x = conv(x, channels=self.z_dim, stride=1, sn=self.sn, use_bias=False, scope='Z_logit')
+            return x
+
     ##################################################################################
     # Discriminator
     ##################################################################################
@@ -170,9 +199,9 @@ class SAGAN(object):
                 ch = ch * 2
 
 
-            x = conv(x, channels=1, stride=1, sn=self.sn, use_bias=False, scope='D_logit')
-            x = minibatch(x, 1, 1)
-            x = fully_conneted(x, 1)
+            x = conv(x, channels=ch * 2, stride=1, sn=self.sn, use_bias=False, scope='D_logit')
+            x = minibatch(x, 1, ch * 2)
+            x = fully_connected(x, 1)
             x = lrelu(x, 0.2)
 
             return x
@@ -263,6 +292,9 @@ class SAGAN(object):
         fake_images = self.generator(self.z)
         fake_logits = self.discriminator(fake_images, reuse=True)
 
+        #Predict noise from fake images, as in https://github.com/tdrussell/IllustrationGAN/blob/master/model.py
+        z_logits = self.z_predictor(fake_images, self.z, reuse=tf.AUTO_REUSE)
+
         if self.gan_type.__contains__('wgan') or self.gan_type == 'dragan' :
             GP = self.gradient_penalty(real=self.inputs, fake=fake_images)
         else :
@@ -270,6 +302,7 @@ class SAGAN(object):
 
         # get loss for discriminator
         self.d_loss = discriminator_loss(self.gan_type, real=real_logits, fake=fake_logits) + GP
+        self.z_loss = tf.reduce_mean(tf.square(self.z - z_logits), name='z_prediction_loss')
 
         # get loss for generator
         self.g_loss = generator_loss(self.gan_type, fake=fake_logits)
@@ -278,11 +311,11 @@ class SAGAN(object):
         # divide trainable variables into a group for D and a group for G
         t_vars = tf.trainable_variables()
         d_vars = [var for var in t_vars if 'discriminator' in var.name]
-        g_vars = [var for var in t_vars if 'generator' in var.name]
+        g_vars = [var for var in t_vars if ('generator' in var.name) or ('z_predictor' in var.name)]
 
         # optimizers
         self.d_optim = tf.train.AdamOptimizer(self.d_learning_rate, beta1=self.beta1, beta2=self.beta2).minimize(self.d_loss, var_list=d_vars)
-        self.g_optim = tf.train.AdamOptimizer(self.g_learning_rate, beta1=self.beta1, beta2=self.beta2).minimize(self.g_loss, var_list=g_vars)
+        self.g_optim = tf.train.AdamOptimizer(self.g_learning_rate, beta1=self.beta1, beta2=self.beta2).minimize(self.g_loss + self.z_loss, var_list=g_vars)
 
         """" Testing """
         # for test
@@ -353,16 +386,18 @@ class SAGAN(object):
                 # update G network
                 g_loss = None
                 if (counter - 1) % self.n_critic == 0:
-                    _, summary_str, g_loss = self.sess.run([self.g_optim, self.g_sum, self.g_loss], feed_dict=train_feed_dict)
+                    _, summary_str, g_loss, z_loss = self.sess.run([self.g_optim, self.g_sum, self.g_loss, self.z_loss], feed_dict=train_feed_dict)
                     self.writer.add_summary(summary_str, counter)
                     past_g_loss = g_loss
+                    past_z_loss = z_loss
 
                 # display training status
                 counter += 1
                 if g_loss == None :
                     g_loss = past_g_loss
-                print("Epoch: [%2d] [%5d/%5d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
-                      % (epoch, idx, self.iteration, time.time() - start_time, d_loss, g_loss))
+                    z_loss = past_z_loss
+                print("Epoch: [%2d] [%5d/%5d] time: %4.4f, d_loss: %.8f, g_loss: %.8f, z_loss: %.8f" \
+                      % (epoch, idx, self.iteration, time.time() - start_time, d_loss, g_loss, z_loss))
 
                 # save training results for every 300 steps
                 if np.mod(idx+1, self.print_freq) == 0:

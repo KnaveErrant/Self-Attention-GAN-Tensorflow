@@ -65,7 +65,7 @@ def deconv(x, channels, kernel=4, stride=2, padding='SAME', use_bias=True, sn=Fa
 
         return x
 
-def fully_conneted(x, units, use_bias=True, sn=False, scope='fully_0'):
+def fully_connected(x, units, use_bias=True, sn=False, scope='fully_0'):
     with tf.variable_scope(scope):
         x = flatten(x)
         shape = x.get_shape().as_list()
@@ -98,12 +98,21 @@ def minibatch(input, num_kernels=5, kernel_dim=3):
     x = tf.reshape(x, (-1, num_kernels, kernel_dim))
     print(input.shape)
     #Calculate L1 distance and concat to original layer
-    diffs = tf.expand_dims(x, 3) - tf.expand_dims(tf.transpose(x, [1, 2, 0]), 0)
-    abs_diffs = tf.reduce_sum(tf.abs(diffs), 2)
-    minibatch_features = tf.reduce_sum(tf.exp(-abs_diffs), 2)
-    minibatch_features = tf.reshape(minibatch_features, (-1, 1, 1, 1))
+    cutoff = x.shape[0] // 2
+    x1 = x[:cutoff]
+    x2 = x[cutoff:]
+    print(x1.shape, x2.shape)
+    diffs = tf.reduce_sum(tf.abs(x1 - x2), axis=2)
+    print(diffs.shape, "diffs")
+    minibatch_features = tf.reduce_sum(tf.exp(-diffs), 0)
+    print(minibatch_features.shape, "minibatch_features")
+    minibatch_features = tf.reshape(minibatch_features, (-1, 1))
+    minibatch_features = tf.keras.layers.RepeatVector(x.shape[0])(minibatch_features)
+    minibatch_features = tf.expand_dims(tf.transpose(minibatch_features, [1, 0, 2]), -1)
 
-    return tf.concat([input, minibatch_features], 0)
+    results = tf.concat([input, minibatch_features], -1)
+    print(results.shape)
+    return results
 ##################################################################################
 # Residual-block
 ##################################################################################
