@@ -24,6 +24,8 @@ class SAGAN(object):
 
         """ Generator """
         self.layer_num = int(np.log2(self.img_size)) - 3
+        self.kernel_one = 4 + (self.img_size - 2**(self.layer_num + 3))
+        print(f"Kernel one size: {self.kernel_one}")
         self.z_dim = args.z_dim  # dimension of noise-vector
         self.up_sample = args.up_sample
         self.gan_type = args.gan_type
@@ -95,8 +97,8 @@ class SAGAN(object):
     def generator(self, z, is_training=True, reuse=False):
         with tf.variable_scope("generator", reuse=reuse):
             ch = 1024
-            x = fully_connected(z, units= self.z_dim * 4, sn=self.sn)
-            x = deconv(z, channels=ch, kernel=4, stride=1, padding='VALID', use_bias=False, sn=self.sn, scope='deconv')
+            #x = fully_connected(z, units= self.z_dim * 4, sn=self.sn)
+            x = deconv(z, channels=ch, kernel=self.kernel_one, stride=1, padding='VALID', use_bias=False, sn=self.sn, scope='deconv')
             x = batch_norm(x, is_training, scope='batch_norm')
             x = relu(x)
 
@@ -199,7 +201,7 @@ class SAGAN(object):
                 ch = ch * 2
 
 
-            x = conv(x, channels=ch * 2, stride=1, sn=self.sn, use_bias=False, scope='D_logit')
+            x = conv(x, channels=ch * 2, kernel=self.kernel_one, stride=1, sn=self.sn, use_bias=False, scope='D_logit')
             x = minibatch(x, 1, ch * 2)
             x = fully_connected(x, 1)
             x = lrelu(x, 0.2)
