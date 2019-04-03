@@ -98,7 +98,7 @@ class SAGAN(object):
         with tf.variable_scope("generator", reuse=reuse):
             ch = 1024
             #x = fully_connected(z, units= self.z_dim * 4, sn=self.sn)
-            x = deconv(z, channels=ch, kernel=self.kernel_one, stride=1, padding='VALID', use_bias=False, sn=self.sn, scope='deconv')
+            x = deconv(z, channels=ch, kernel=4, stride=1, padding='VALID', use_bias=False, sn=self.sn, scope='deconv')
             x = batch_norm(x, is_training, scope='batch_norm')
             x = relu(x)
 
@@ -135,12 +135,14 @@ class SAGAN(object):
 
 
             if self.up_sample:
-                x = up_sample(x, scale_factor=2)
-                x = conv(x, channels=self.c_dim, kernel=3, stride=1, pad=1, sn=self.sn, scope='G_conv_logit')
+                print(f"x.shape: {x.shape}")
+                x = up_sample(x, scale_factor=4)
+                print(f"x.shape (upsampled): {x.shape}")
+                x = conv(x, channels=self.c_dim, kernel=5 + x.shape[1]//2 - self.kernel_one, stride=1, sn=self.sn, scope='G_conv_logit')
                 x = tanh(x)
 
             else:
-                x = deconv(x, channels=self.c_dim, kernel=4, stride=2, use_bias=False, sn=self.sn, scope='G_deconv_logit')
+                x = deconv(x, channels=self.c_dim, padding = 'VALID', kernel=self.kernel_one -2, stride=2, use_bias=True, sn=self.sn, scope='G_deconv_logit')
                 x = tanh(x)
 
             return x
@@ -149,7 +151,7 @@ class SAGAN(object):
     def z_predictor(self, images, z, reuse=False, is_training=True):
         with tf.variable_scope("z_predictor", reuse=reuse):
             ch = 64
-            x = conv(images, channels=ch, kernel=4, stride=2, pad=1, sn=self.sn, use_bias=False, scope='conv')
+            x = conv(images, channels=ch, kernel=self.kernel_one, stride=2, pad=1, sn=self.sn, use_bias=False, scope='conv')
             x = lrelu(x, 0.2)
 
             for i in range(self.layer_num // 2):
@@ -170,7 +172,7 @@ class SAGAN(object):
                 ch = ch * 2
 
 
-            x = conv(x, channels=self.z_dim, stride=1, sn=self.sn, use_bias=False, scope='Z_logit')
+            x = conv(x, channels=self.z_dim, kernel = 4, stride=1, sn=self.sn, use_bias=False, scope='Z_logit')
             return x
 
     ##################################################################################
@@ -180,7 +182,7 @@ class SAGAN(object):
     def discriminator(self, x, is_training=True, reuse=False):
         with tf.variable_scope("discriminator", reuse=reuse):
             ch = 64
-            x = conv(x, channels=ch, kernel=4, stride=2, pad=1, sn=self.sn, use_bias=False, scope='conv')
+            x = conv(x, channels=ch, kernel=self.kernel_one, stride=2, pad=1, sn=self.sn, use_bias=False, scope='conv')
             x = lrelu(x, 0.2)
 
             for i in range(self.layer_num // 2):
@@ -201,7 +203,7 @@ class SAGAN(object):
                 ch = ch * 2
 
 
-            x = conv(x, channels=ch * 2, kernel=self.kernel_one, stride=1, sn=self.sn, use_bias=False, scope='D_logit')
+            x = conv(x, channels=ch * 2, kernel=4, stride=1, sn=self.sn, use_bias=False, scope='D_logit')
             x = minibatch(x, 1, ch * 2)
             x = fully_connected(x, 1)
             x = lrelu(x, 0.2)
@@ -243,7 +245,7 @@ class SAGAN(object):
 
         else :
             alpha = tf.random_uniform(shape=[self.batch_size, 1, 1, 1], minval=0., maxval=1.)
-            print(alpha.shape, real.shape, fake)
+            print(alpha.shape, real.shape, fake.shape)
             interpolated = alpha*real + (1. - alpha)*fake
 
         logit = self.discriminator(interpolated, reuse=True)
@@ -289,10 +291,14 @@ class SAGAN(object):
         """ Loss Function """
         # output of D for real images
         real_logits = self.discriminator(self.inputs)
+        print(f"Real logit shape: {real_logits.shape}")
 
         # output of D for fake images
         fake_images = self.generator(self.z)
+        print(f"Fake image shape: {fake_images.shape}")
+
         fake_logits = self.discriminator(fake_images, reuse=True)
+        print(f"Fake logit shape: {fake_logits.shape}")
 
         #Predict noise from fake images, as in https://github.com/tdrussell/IllustrationGAN/blob/master/model.py
         z_logits = self.z_predictor(fake_images, self.z, reuse=tf.AUTO_REUSE)
