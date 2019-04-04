@@ -120,7 +120,7 @@ class SAGAN(object):
             x = relu(x)
 
             for i in range(self.layer_num // 2):
-                print(f"Generator Layer {i}: shape{x.shape}")
+                #print(f"Generator Layer {i}: shape{x.shape}")
                 if self.up_sample:
                     x = up_sample(x, scale_factor=2)
                     x = conv(x, channels=ch // 2, kernel=3, stride=1, pad=1, sn=self.sn, scope='up_conv_' + str(i))
@@ -138,7 +138,7 @@ class SAGAN(object):
             x = self.attention(x, ch // 2, sn=self.sn, scope="attention", reuse=reuse)
 
             for i in range(self.layer_num // 2, self.layer_num):
-                print(f"Generator Layer {i}: shape{x.shape}")
+                #print(f"Generator Layer {i}: shape{x.shape}")
                 if self.up_sample:
                     x = up_sample(x, scale_factor=2)
                     x = conv(x, channels=ch // 2, kernel=3, stride=1, pad=1, sn=self.sn, scope='up_conv_' + str(i))
@@ -154,14 +154,14 @@ class SAGAN(object):
 
 
             if self.up_sample:
-                print(f"x.shape: {x.shape}")
+                #print(f"x.shape: {x.shape}")
                 x = up_sample(x, scale_factor=4)
-                print(f"x.shape (upsampled): {x.shape}")
+                #print(f"x.shape (upsampled): {x.shape}")
                 x = conv(x, channels=self.c_dim, kernel=5 + int(x.shape[1])//2 - self.kernel_one, stride=1, sn=self.sn, scope='G_conv_logit')
                 x = tanh(x)
 
             else:
-                x = deconv(x, channels=self.c_dim, padding = 'VALID', kernel=int(self.img_size - x.shape[1] + 1), stride=2, use_bias=True, sn=self.sn, scope='G_deconv_logit')
+                x = deconv(x, channels=self.c_dim, padding = 'VALID', kernel=int(self.img_size - x.shape[1] + 1), stride=1, use_bias=True, sn=self.sn, scope='G_deconv_logit')
                 x = tanh(x)
 
             return x
@@ -169,28 +169,28 @@ class SAGAN(object):
 
     def z_predictor(self, images, z, reuse=False, is_training=True):
         with tf.variable_scope("z_predictor", reuse=reuse):
-            ch = 1
-            x = conv(images, channels=ch, kernel=self.kernel_one, stride=2, pad=1, sn=self.sn, use_bias=False, scope='conv')
+            ch = 4
+            x = conv(images, channels=ch, kernel=self.kernel_size, stride=1, pad=1, sn=self.sn, use_bias=False, scope='conv')
             x = lrelu(x, 0.2)
 
             for i in range(self.layer_num // 2):
-                print(f"Noise Predictor Layer {i}: shape{x.shape}")
-                x = conv(x, channels=ch * 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
+                #print(f"Noise Predictor Layer {i}: shape{x.shape}")
+                x = conv(x, channels=ch + 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
                 x = batch_norm(x, is_training, scope='zbatch_norm' + str(i))
                 x = lrelu(x, 0.2)
 
-                ch = ch * 2
+                ch = ch + 2
 
             # Self Attention
             x = self.attention(x, ch, sn=self.sn, scope="zattention", reuse=reuse)
 
             for i in range(self.layer_num // 2, self.layer_num):
-                print(f"Noise Predictor Layer {i}: shape{x.shape}")
-                x = conv(x, channels=ch * 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='zconv_' + str(i))
+                #print(f"Noise Predictor Layer {i}: shape{x.shape}")
+                x = conv(x, channels=ch + 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='zconv_' + str(i))
                 x = batch_norm(x, is_training, scope='zbatch_norm' + str(i))
                 x = lrelu(x, 0.2)
 
-                ch = ch * 2
+                ch = ch + 2
 
 
             x = conv(x, channels=self.z_dim, kernel = x.shape[1], stride=1, sn=self.sn, use_bias=False, scope='Z_logit')
@@ -202,34 +202,34 @@ class SAGAN(object):
 
     def discriminator(self, x, is_training=True, reuse=False):
         with tf.variable_scope("discriminator", reuse=reuse):
-            ch = 1
+            ch = 4
             x = conv(x, channels=ch, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv')
             x = lrelu(x, 0.2)
 
             for i in range(self.layer_num // 2):
-                print(f"Discriminator Layer {i}: shape{x.shape}")
-                x = conv(x, channels=ch * 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
+                #print(f"Discriminator Layer {i}: shape{x.shape}")
+                x = conv(x, channels=ch + 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
                 x = batch_norm(x, is_training, scope='batch_norm' + str(i))
                 x = lrelu(x, 0.2)
 
-                ch = ch * 2
+                ch = ch + 2
 
             # Self Attention
             x = self.attention(x, ch, sn=self.sn, scope="attention", reuse=reuse)
 
             for i in range(self.layer_num // 2, self.layer_num):
-                print(f"Discriminator Layer {i}: shape{x.shape}")
-                x = conv(x, channels=ch * 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
+                #print(f"Discriminator Layer {i}: shape{x.shape}")
+                x = conv(x, channels=ch + 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
                 x = batch_norm(x, is_training, scope='batch_norm' + str(i))
                 x = lrelu(x, 0.2)
 
-                ch = ch * 2
+                ch = ch + 2
 
 
-            print(f"Discriminator Layer -2: shape{x.shape}")
-            x = conv(x, channels=ch * 2, kernel=x.shape[1], stride=1, sn=self.sn, use_bias=False, scope='D_logit')
-            print(f"Discriminator Layer -1: shape{x.shape}")
-            x = minibatch(x, 1, ch * 2)
+            #print(f"Discriminator Layer -2: shape{x.shape}")
+            x = conv(x, channels=ch + 2, kernel=x.shape[1], stride=1, sn=self.sn, use_bias=False, scope='D_logit')
+            #print(f"Discriminator Layer -1: shape{x.shape}")
+            x = minibatch(x, 1, ch + 2)
             x = fully_connected(x, 1)
             x = lrelu(x, 0.2)
 
@@ -238,25 +238,25 @@ class SAGAN(object):
     def attention(self, x, ch, sn=False, scope='attention', reuse=False):
         with tf.variable_scope(scope, reuse=reuse):
             f = conv(x, ch // 8, kernel=1, stride=1, sn=sn, scope='f_conv') # [bs, h, w, c']
-            print(f"f.shape: {f.shape}")
+            #print(f"f.shape: {f.shape}")
             g = conv(x, ch // 8, kernel=1, stride=1, sn=sn, scope='g_conv') # [bs, h, w, c']
-            print(f"g.shape: {g.shape}")
+            #print(f"g.shape: {g.shape}")
             h = conv(x, max(ch, 8), kernel=1, stride=1, sn=sn, scope='h_conv') # [bs, h, w, c]
-            print(f"h.shape: {h.shape}")
+            #print(f"h.shape: {h.shape}")
 
 
             # N = h * w
             s = tf.matmul(hw_flatten(g), hw_flatten(f), transpose_b=True) # # [bs, N, N]
-            print(f"s.shape: {s.shape}")
+            #print(f"s.shape: {s.shape}")
 
             beta = tf.nn.softmax(s)  # attention map
 
             o = tf.matmul(beta, hw_flatten(h)) # [bs, N, C]
-            print(f"o.shape: {o.shape}")
+            #print(f"o.shape: {o.shape}")
             gamma = tf.get_variable("gamma", [1], initializer=tf.constant_initializer(0.0))
 
             o = tf.reshape(o, shape=[x.shape[0], x.shape[1], x.shape[2], -1]) # [bs, h, w, C]
-            print(f"o.shape: {o.shape}")
+            #print(f"o.shape: {o.shape}")
             x = gamma * o + x
 
         return x
@@ -277,7 +277,7 @@ class SAGAN(object):
 
         else :
             alpha = tf.random_uniform(shape=[self.batch_size, 1, 1, 1], minval=0., maxval=1.)
-            print(alpha.shape, real.shape, fake.shape)
+            #print(alpha.shape, real.shape, fake.shape)
             interpolated = alpha*real + (1. - alpha)*fake
 
         logit = self.discriminator(interpolated, reuse=True)
