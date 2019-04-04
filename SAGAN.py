@@ -23,12 +23,20 @@ class SAGAN(object):
 
 
         """ Generator """
-        self.layer_num = int(np.log2(self.img_size)) - 3
-        self.kernel_one = 4 + (self.img_size - 2**(self.layer_num + 3))
-        print(f"Kernel one size: {self.kernel_one}")
+        self.kernel_size = args.kernel_size
+        self.kernel_mod = self.img_size % (self.kernel_size - 1) - 1
         self.z_dim = args.z_dim  # dimension of noise-vector
         self.up_sample = args.up_sample
         self.gan_type = args.gan_type
+        if self.up_sample:
+            self.layer_num = int(np.log2(self.img_size)) - 3
+            self.kernel_one = 4 + (self.img_size - 2**(self.layer_num + 3))
+            print(f"Final kernel size: {self.kernel_one}")
+        else:
+            self.layer_num = int(self.img_size // (self.kernel_size - 1)) - 1
+            if self.kernel_mod == 0:
+                self.layer_num -= 1
+                self.kernel_mod = self.kernel_size
 
         """ Discriminator """
         self.n_critic = args.n_critic
@@ -82,6 +90,11 @@ class SAGAN(object):
         print("##### Generator #####")
         print("# generator layer : ", self.layer_num)
         print("# upsample conv : ", self.up_sample)
+        print("Kernel size : ", self.kernel_size)
+        printlist = []
+        imsize = self.image_size
+        while imsize > 1:
+            printlist.append(imsize //(self.kernel_size - 1))
 
         print()
 
@@ -110,11 +123,11 @@ class SAGAN(object):
                     x = relu(x)
 
                 else:
-                    x = deconv(x, channels=ch // 2, kernel=4, stride=2, use_bias=False, sn=self.sn, scope='deconv_' + str(i))
+                    x = deconv(x, channels=ch // 2, kernel=self.kernel_size, stride=1, use_bias=True, sn=self.sn, scope='deconv_' + str(i))
                     x = batch_norm(x, is_training, scope='batch_norm_' + str(i))
                     x = relu(x)
 
-                ch = ch // 2
+                ch = max(ch // 2, 4 * self.c_dim)
 
             # Self Attention
             x = self.attention(x, ch, sn=self.sn, scope="attention", reuse=reuse)
@@ -127,11 +140,11 @@ class SAGAN(object):
                     x = relu(x)
 
                 else:
-                    x = deconv(x, channels=ch // 2, kernel=4, stride=2, use_bias=False, sn=self.sn, scope='deconv_' + str(i))
+                    x = deconv(x, channels=ch // 2, kernel=self.kernel_size, stride=1, use_bias=False, sn=self.sn, scope='deconv_' + str(i))
                     x = batch_norm(x, is_training, scope='batch_norm_' + str(i))
                     x = relu(x)
 
-                ch = ch // 2
+                ch = max(ch // 2, 4 * self.c_dim)
 
 
             if self.up_sample:
@@ -142,7 +155,7 @@ class SAGAN(object):
                 x = tanh(x)
 
             else:
-                x = deconv(x, channels=self.c_dim, padding = 'VALID', kernel=self.kernel_one -2, stride=2, use_bias=True, sn=self.sn, scope='G_deconv_logit')
+                x = deconv(x, channels=self.c_dim, padding = 'VALID', kernel=self.img_size % self.kernel_size + 1, stride=2, use_bias=True, sn=self.sn, scope='G_deconv_logit')
                 x = tanh(x)
 
             return x
@@ -155,7 +168,7 @@ class SAGAN(object):
             x = lrelu(x, 0.2)
 
             for i in range(self.layer_num // 2):
-                x = conv(x, channels=ch * 2, kernel=4, stride=2, pad=1, sn=self.sn, use_bias=False, scope='conv_' + str(i))
+                x = conv(x, channels=ch * 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
                 x = batch_norm(x, is_training, scope='zbatch_norm' + str(i))
                 x = lrelu(x, 0.2)
 
@@ -165,14 +178,14 @@ class SAGAN(object):
             x = self.attention(x, ch, sn=self.sn, scope="zattention", reuse=reuse)
 
             for i in range(self.layer_num // 2, self.layer_num):
-                x = conv(x, channels=ch * 2, kernel=4, stride=2, pad=1, sn=self.sn, use_bias=False, scope='zconv_' + str(i))
+                x = conv(x, channels=ch * 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='zconv_' + str(i))
                 x = batch_norm(x, is_training, scope='zbatch_norm' + str(i))
                 x = lrelu(x, 0.2)
 
                 ch = ch * 2
 
 
-            x = conv(x, channels=self.z_dim, kernel = 4, stride=1, sn=self.sn, use_bias=False, scope='Z_logit')
+            x = conv(x, channels=self.z_dim, kernel = self.kernel_mod, stride=1, sn=self.sn, use_bias=False, scope='Z_logit')
             return x
 
     ##################################################################################
@@ -182,11 +195,11 @@ class SAGAN(object):
     def discriminator(self, x, is_training=True, reuse=False):
         with tf.variable_scope("discriminator", reuse=reuse):
             ch = 64
-            x = conv(x, channels=ch, kernel=self.kernel_one, stride=2, pad=1, sn=self.sn, use_bias=False, scope='conv')
+            x = conv(x, channels=ch, kernel=self.kernel_mod, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv')
             x = lrelu(x, 0.2)
 
             for i in range(self.layer_num // 2):
-                x = conv(x, channels=ch * 2, kernel=4, stride=2, pad=1, sn=self.sn, use_bias=False, scope='conv_' + str(i))
+                x = conv(x, channels=ch * 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
                 x = batch_norm(x, is_training, scope='batch_norm' + str(i))
                 x = lrelu(x, 0.2)
 
@@ -196,14 +209,14 @@ class SAGAN(object):
             x = self.attention(x, ch, sn=self.sn, scope="attention", reuse=reuse)
 
             for i in range(self.layer_num // 2, self.layer_num):
-                x = conv(x, channels=ch * 2, kernel=4, stride=2, pad=1, sn=self.sn, use_bias=False, scope='conv_' + str(i))
+                x = conv(x, channels=ch * 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
                 x = batch_norm(x, is_training, scope='batch_norm' + str(i))
                 x = lrelu(x, 0.2)
 
                 ch = ch * 2
 
 
-            x = conv(x, channels=ch * 2, kernel=4, stride=1, sn=self.sn, use_bias=False, scope='D_logit')
+            x = conv(x, channels=ch * 2, kernel=self.kernel_size, stride=1, sn=self.sn, use_bias=False, scope='D_logit')
             x = minibatch(x, 1, ch * 2)
             x = fully_connected(x, 1)
             x = lrelu(x, 0.2)
