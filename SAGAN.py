@@ -113,11 +113,11 @@ class SAGAN(object):
 
     def generator(self, z, is_training=True, reuse=False):
         with tf.variable_scope("generator", reuse=reuse):
-            ch = 1024
+            ch = 512
             #x = fully_connected(z, units= self.z_dim * 4, sn=self.sn)
             x = deconv(z, channels=ch, kernel=4, stride=1, padding='VALID', use_bias=False, sn=self.sn, scope='deconv')
             x = batch_norm(x, is_training, scope='batch_norm')
-            x = relu(x)
+            x = lrelu(x, 0.2)
 
             for i in range(self.layer_num // 2):
                 #print(f"Generator Layer {i}: shape{x.shape}")
@@ -125,17 +125,17 @@ class SAGAN(object):
                     x = up_sample(x, scale_factor=2)
                     x = conv(x, channels=ch // 2, kernel=3, stride=1, pad=1, sn=self.sn, scope='up_conv_' + str(i))
                     x = batch_norm(x, is_training, scope='batch_norm_' + str(i))
-                    x = relu(x)
+                    x = lrelu(x, 0.2)
 
                 else:
                     x = deconv(x, channels=ch // 2, kernel=self.kernel_size, stride=1, padding='VALID', use_bias=False, sn=self.sn, scope='deconv_' + str(i))
                     x = batch_norm(x, is_training, scope='batch_norm_' + str(i))
-                    x = relu(x)
+                    x = lrelu(x, 0.2)
 
                 ch = max(ch // 2, 4 * self.c_dim)
 
             # Self Attention
-            x = self.attention(x, ch // 2, sn=self.sn, scope="attention", reuse=reuse)
+            x = self.attention(x, ch, sn=self.sn, scope="attention", reuse=reuse)
 
             for i in range(self.layer_num // 2, self.layer_num):
                 #print(f"Generator Layer {i}: shape{x.shape}")
@@ -143,12 +143,12 @@ class SAGAN(object):
                     x = up_sample(x, scale_factor=2)
                     x = conv(x, channels=ch // 2, kernel=3, stride=1, pad=1, sn=self.sn, scope='up_conv_' + str(i))
                     x = batch_norm(x, is_training, scope='batch_norm_' + str(i))
-                    x = relu(x)
+                    x = lrelu(x, 0.2)
 
                 else:
                     x = deconv(x, channels=ch // 2, kernel=self.kernel_size, stride=1, padding='VALID', use_bias=False, sn=self.sn, scope='deconv_' + str(i))
                     x = batch_norm(x, is_training, scope='batch_norm_' + str(i))
-                    x = relu(x)
+                    x = lrelu(x, 0.2)
 
                 ch = max(ch // 2, 4 * self.c_dim)
 
@@ -169,28 +169,28 @@ class SAGAN(object):
 
     def z_predictor(self, images, z, reuse=False, is_training=True):
         with tf.variable_scope("z_predictor", reuse=reuse):
-            ch = 4
+            ch = 32
             x = conv(images, channels=ch, kernel=self.kernel_size, stride=1, pad=1, sn=self.sn, use_bias=False, scope='conv')
             x = lrelu(x, 0.2)
 
             for i in range(self.layer_num // 2):
                 #print(f"Noise Predictor Layer {i}: shape{x.shape}")
-                x = conv(x, channels=ch + 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
+                x = conv(x, channels=ch, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
                 x = batch_norm(x, is_training, scope='zbatch_norm' + str(i))
                 x = lrelu(x, 0.2)
 
-                ch = ch + 2
+                ch = min(ch * 2, 128)
 
             # Self Attention
             x = self.attention(x, ch, sn=self.sn, scope="zattention", reuse=reuse)
 
             for i in range(self.layer_num // 2, self.layer_num):
                 #print(f"Noise Predictor Layer {i}: shape{x.shape}")
-                x = conv(x, channels=ch + 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='zconv_' + str(i))
+                x = conv(x, channels=ch, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='zconv_' + str(i))
                 x = batch_norm(x, is_training, scope='zbatch_norm' + str(i))
                 x = lrelu(x, 0.2)
 
-                ch = ch + 2
+                ch = min(ch * 2, 128)
 
 
             x = conv(x, channels=self.z_dim, kernel = x.shape[1], stride=1, sn=self.sn, use_bias=False, scope='Z_logit')
@@ -202,34 +202,34 @@ class SAGAN(object):
 
     def discriminator(self, x, is_training=True, reuse=False):
         with tf.variable_scope("discriminator", reuse=reuse):
-            ch = 4
+            ch = 32
             x = conv(x, channels=ch, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv')
             x = lrelu(x, 0.2)
 
             for i in range(self.layer_num // 2):
                 #print(f"Discriminator Layer {i}: shape{x.shape}")
-                x = conv(x, channels=ch + 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
+                x = conv(x, channels=ch, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
                 x = batch_norm(x, is_training, scope='batch_norm' + str(i))
                 x = lrelu(x, 0.2)
 
-                ch = ch + 2
+                ch = min(ch * 2, 128)
 
             # Self Attention
             x = self.attention(x, ch, sn=self.sn, scope="attention", reuse=reuse)
 
             for i in range(self.layer_num // 2, self.layer_num):
                 #print(f"Discriminator Layer {i}: shape{x.shape}")
-                x = conv(x, channels=ch + 2, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
+                x = conv(x, channels=ch, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
                 x = batch_norm(x, is_training, scope='batch_norm' + str(i))
                 x = lrelu(x, 0.2)
 
-                ch = ch + 2
+                ch = min(ch * 2, 128)
 
 
             #print(f"Discriminator Layer -2: shape{x.shape}")
-            x = conv(x, channels=ch + 2, kernel=x.shape[1], stride=1, sn=self.sn, use_bias=False, scope='D_logit')
+            x = conv(x, channels=ch * 2, kernel=x.shape[1], stride=1, sn=self.sn, use_bias=False, scope='D_logit')
             #print(f"Discriminator Layer -1: shape{x.shape}")
-            x = minibatch(x, 1, ch + 2)
+            x = minibatch(x, 1, ch * 2)
             x = fully_connected(x, 1)
             x = lrelu(x, 0.2)
 
@@ -238,25 +238,25 @@ class SAGAN(object):
     def attention(self, x, ch, sn=False, scope='attention', reuse=False):
         with tf.variable_scope(scope, reuse=reuse):
             f = conv(x, ch // 8, kernel=1, stride=1, sn=sn, scope='f_conv') # [bs, h, w, c']
-            #print(f"f.shape: {f.shape}")
+            print(f"f.shape: {f.shape}")
             g = conv(x, ch // 8, kernel=1, stride=1, sn=sn, scope='g_conv') # [bs, h, w, c']
-            #print(f"g.shape: {g.shape}")
-            h = conv(x, max(ch, 8), kernel=1, stride=1, sn=sn, scope='h_conv') # [bs, h, w, c]
-            #print(f"h.shape: {h.shape}")
+            print(f"g.shape: {g.shape}")
+            h = conv(x, ch, kernel=1, stride=1, sn=sn, scope='h_conv') # [bs, h, w, c]
+            print(f"h.shape: {h.shape}")
 
 
             # N = h * w
             s = tf.matmul(hw_flatten(g), hw_flatten(f), transpose_b=True) # # [bs, N, N]
-            #print(f"s.shape: {s.shape}")
+            print(f"s.shape: {s.shape}")
 
             beta = tf.nn.softmax(s)  # attention map
 
             o = tf.matmul(beta, hw_flatten(h)) # [bs, N, C]
-            #print(f"o.shape: {o.shape}")
+            print(f"o.shape: {o.shape}")
             gamma = tf.get_variable("gamma", [1], initializer=tf.constant_initializer(0.0))
 
             o = tf.reshape(o, shape=[x.shape[0], x.shape[1], x.shape[2], -1]) # [bs, h, w, C]
-            #print(f"o.shape: {o.shape}")
+            print(f"o.shape: {o.shape}")
             x = gamma * o + x
 
         return x
