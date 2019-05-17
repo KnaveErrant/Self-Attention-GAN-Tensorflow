@@ -220,6 +220,8 @@ class SAGAN(object):
 
             for i in range(self.layer_num // 2, self.layer_num):
                 #print(f"Discriminator Layer {i}: shape{x.shape}")
+                if x.shape[1] <= self.kernel_size:
+                    break
                 x = conv(x, channels=ch, kernel=self.kernel_size, stride=1, pad=0, sn=self.sn, use_bias=False, scope='conv_' + str(i))
                 x = batch_norm(x, is_training, scope='batch_norm' + str(i))
                 x = lrelu(x, 0.2)
