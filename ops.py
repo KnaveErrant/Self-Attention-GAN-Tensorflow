@@ -22,10 +22,10 @@ def conv(x, channels=4, kernel=4, stride=2, pad=0, pad_type='zero', use_bias=Tru
             x = tf.pad(x, [[0, 0], [pad, pad], [pad, pad], [0, 0]], mode='REFLECT')
 
         if sn :
-            print(channels)
-            hmm = x.get_shape()[-1]
-            print(hmm, " hmm")
-            w = tf.get_variable("kernel", shape=[kernel, kernel, hmm, channels], initializer=weight_init,
+            #print(channels)
+            xdim = x.get_shape()[-1]
+            #print("# xdim : ", xdim)
+            w = tf.get_variable("kernel", shape=[kernel, kernel, xdim, channels], initializer=weight_init,
                                 regularizer=weight_regularizer)
             x = tf.nn.conv2d(input=x, filter=spectral_norm(w),
                              strides=[1, stride, stride, 1], padding='VALID')
